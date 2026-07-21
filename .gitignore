@@ -1,0 +1,41 @@
+# macOS
+.DS_Store
+
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+
+# Dataset
+data/*.csv
+
+# Model artifacts
+models/*.pkl
+models/*.npy
+
+# Streamlit cache
+.streamlit/cache/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Python build files
+build/
+dist/
+*.egg-info/
