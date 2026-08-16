@@ -14,16 +14,19 @@
 
 Only update:
 
-01_EDA.ipynb
-02_Content_Based_Model.ipynb
-03_Collaborative_Filtering_Model.ipynb
-04_Evaluation.ipynb
+01_preprocessing_analysis.ipynb
+03_content_based.ipynb
+04_collaborative.ipynb
+05_evaluation.ipynb
+06_itinerary_analysis.ipynb
 
 Never create:
 
-03_Content_Based.ipynb
-04_CF.ipynb
-Evaluation.ipynb
+01_eda.ipynb
+02_preprocessing.ipynb
+02_content_based.ipynb
+03_collaborative.ipynb
+04_evaluation.ipynb
 
 ---
 

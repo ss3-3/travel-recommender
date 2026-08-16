@@ -18,10 +18,11 @@ travel-recommender/
 │   ├── collaborative.py  # Collaborative Filtering recommendation logic
 │   └── evaluation.py     # Evaluation metrics and model comparison logic
 ├── notebooks/            # Notebooks used for analysis, visualisation, and reporting
-│   ├── 01_eda.ipynb      # Exploratory Data Analysis
-│   ├── 02_content_based.ipynb # Content-Based Filtering development
-│   ├── 03_collaborative.ipynb # Collaborative Filtering development
-│   └── 04_evaluation.ipynb # Final evaluation and visualization plots
+│   ├── 01_preprocessing_analysis.ipynb # Exploratory Data Analysis & Preprocessing
+│   ├── 03_content_based.ipynb # Content-Based Filtering development
+│   ├── 04_collaborative.ipynb # Collaborative Filtering development
+│   ├── 05_evaluation.ipynb   # Model evaluation and comparison plots
+│   └── 06_itinerary_analysis.ipynb # Itinerary generation and evaluation plots
 ├── scratch/              # Verification scripts to test individual modules
 │   ├── test_preprocessing.py
 │   ├── test_content_based.py
@@ -116,7 +117,7 @@ prepare_attractions()          prepare_interactions()
         │                               │
         └───────────────┬───────────────┘
                         ▼
-             app.py (Streamlit App) / notebooks/04_evaluation.ipynb
+             app.py (Streamlit App) / notebooks/05_evaluation.ipynb
 ```
 
 Both models read from the *same* cleaned dataset, so the comparison in Chapter 5 of your report is fair — neither model gets differently prepared data.
@@ -141,13 +142,13 @@ content_based.py   collaborative.py
               app.py
 ```
 
-`evaluation.py` sits off to the side, imported by `notebooks/04_evaluation.ipynb`, and imports/depends on `preprocessing.py`, `content_based.py`, and `collaborative.py`.
+`evaluation.py` sits off to the side, imported by `notebooks/05_evaluation.ipynb`, and imports/depends on `preprocessing.py`, `content_based.py`, and `collaborative.py`.
 
 **Import rules to keep it clean:**
 - `preprocessing.py` has no internal package dependencies.
 - `content_based.py` and `collaborative.py` each import `preprocessing.py` (to reuse cleaning/feature functions). They do **not** import each other — this keeps the two models independent, which matters for your "fair comparison" argument.
 - `app.py` imports `content_based.py` and `collaborative.py`. It never imports `evaluation.py` — evaluation is an offline research step, not a runtime feature of the app.
-- `evaluation.py` imports `preprocessing.py`, `content_based.py`, and `collaborative.py`, and is used only from `notebooks/04_evaluation.ipynb`.
+- `evaluation.py` imports `preprocessing.py`, `content_based.py`, and `collaborative.py`, and is used only from `notebooks/05_evaluation.ipynb`.
 
 ---
 
@@ -213,12 +214,12 @@ content_based.py   collaborative.py
 
 **Development / research order:**
 
-1. `notebooks/01_eda.ipynb` — explore the raw CSV, decide cleaning rules and feature choices. Findings feed directly into `src/preprocessing.py`.
+1. `notebooks/01_preprocessing_analysis.ipynb` — explore the raw CSV, decide cleaning rules and feature choices, and validate preprocessing outputs. Findings feed directly into `src/preprocessing.py`.
 2. Build and test `preprocessing.py` functions inside the notebook or scratch files, then move finalised functions into the `src/` file.
 3. Write and verify `src/preprocessing.py` using `scratch/test_preprocessing.py`.
 4. Write and prototype recommendation scoring directly in the reusable modules `src/content_based.py` and `src/collaborative.py`.
 5. Verify code correctness using `scratch/test_content_based.py` and `scratch/test_collaborative.py`.
-6. Use `notebooks/04_evaluation.ipynb` to import both finished models from `src/`, run evaluations from `src/evaluation.py`, and produce the comparison tables/charts.
+6. Use `notebooks/05_evaluation.ipynb` to import both finished models from `src/`, run evaluations from `src/evaluation.py`, and produce the comparison tables/charts.
 
 **Runtime order (when someone runs the finished app):**
 
@@ -1314,14 +1315,14 @@ This keeps `evaluate_model()` fully self-contained: it evaluates one model again
 
 ## 6. Output Specification
 
-`evaluation.py` (together with `04_evaluation.ipynb`) produces:
+`evaluation.py` (together with `05_evaluation.ipynb` and `06_itinerary_analysis.ipynb`) produces:
 
 | Output | Description |
 |---|---|
 | Per-user metrics table *(intermediate)* | `tourist_id`, `model_name`, `precision_at_k`, `recall_at_k`, `hit_count`, `recommended_count`, `test_count` — one row per evaluable user per model. Useful for inspection/debugging, not the primary report deliverable. |
 | Aggregated metrics summary | One row per model: `model_name`, `precision_at_k`, `recall_at_k`, `f1_at_k`, `coverage`, `evaluated_user_count`, `coverage_user_count`, `total_test_user_count`. The direct output of `evaluate_model()`. `coverage_user_count` and `total_test_user_count` are kept alongside the `coverage` ratio so a reader can see, e.g., "6,700 of 10,000" rather than only the ratio "0.67" — the same reasoning applies to `evaluated_user_count`, which records how many users the accuracy metrics were actually averaged over. |
 | Comparison table | Both models' summary rows combined into a single side-by-side table — the direct output of `compare_models()`, ready to be copied into the results chapter. |
-| Charts *(optional, notebook only)* | e.g. a bar chart comparing Precision@K / Recall@K / F1@K / Coverage between CBF and CF. Visualization is performed only in `04_evaluation.ipynb` — `evaluation.py` never imports `matplotlib` or any plotting library, consistent with the established pattern that the `src/` modules compute numbers and notebooks handle presentation. |
+| Charts *(optional, notebook only)* | e.g. a bar chart comparing Precision@K / Recall@K / F1@K / Coverage between CBF and CF. Visualization is performed only in `05_evaluation.ipynb` — `evaluation.py` never imports `matplotlib` or any plotting library, consistent with the established pattern that the `src/` modules compute numbers and notebooks handle presentation. |
 
 ---
 
@@ -1362,7 +1363,7 @@ No implementation code, per your instruction.
   - `top_n` — the shared Top-N value (Section 5)
   - `model_context` — a dict holding the **precomputed data objects** that specific model's `recommend_fn` needs, which do not change between calls (e.g. for CBF: `{"attraction_df": ..., "tfidf_matrix": ..., "vectorizer": ...}`; for CF: `{"attraction_df": ..., "user_item_matrix": ..., "user_similarity_matrix": ..., "user_index": ..., "attraction_index": ...}`)
   - `model_kwargs` — a dict holding that model's own **tunable hyperparameters** (e.g. for CBF: `{"rating_threshold": 4.0}`; for CF: `{"k": 20}`)
-- **Returns:** a tuple `(summary, per_user_results)` — `summary` is the single aggregated metrics row described in Section 6; `per_user_results` is the per-user metrics table (`tourist_id`, `precision_at_k`, `recall_at_k`, `hit_count`, `recommended_count`, `test_count`), returned alongside `summary` specifically so `04_evaluation.ipynb` can chart or inspect per-user results without a separate function call, and so that a stricter secondary comparison (Section 5) can be built from it later if ever needed.
+- **Returns:** a tuple `(summary, per_user_results)` — `summary` is the single aggregated metrics row described in Section 6; `per_user_results` is the per-user metrics table (`tourist_id`, `precision_at_k`, `recall_at_k`, `hit_count`, `recommended_count`, `test_count`), returned alongside `summary` specifically so `05_evaluation.ipynb` can chart or inspect per-user results without a separate function call, and so that a stricter secondary comparison (Section 5) can be built from it later if ever needed.
 - **Responsibility:** loop over `test_users`, call `recommend_fn(tourist_id=tourist_id, train_df=train_df, top_n=top_n, **model_context, **model_kwargs)` for each, retrieve that user's ground truth via `extract_ground_truth(tourist_id, test_df)`, and aggregate the results via `precision_at_k()`, `recall_at_k()`, `f1_at_k()`, and `coverage()`.
 - **Why `model_context` and `model_kwargs` are kept as two separate dicts rather than one:** `model_context` holds objects that are built once, upfront, and reused unchanged across the whole evaluation run (matrices, indices, the attraction table); `model_kwargs` holds the small number of named hyperparameters that define *which version* of that model is being evaluated (e.g. which `k`, which `rating_threshold`). Keeping them distinct makes it possible to re-run evaluation with a different hyperparameter value (Phase 4/5 tuning) without touching or rebuilding `model_context` at all — the separation reflects a real difference in how often each part of the input changes, not just a stylistic split.
 - **Note on `attraction_df`:** `attraction_df` is included inside `model_context` solely because `recommend_fn` needs it internally (for the `attraction_name`/`city`/`attraction_category` joins already specified in Phase 3 Section 9 and Phase 4 Section 10). `evaluate_model()` itself never reads `attraction_df`'s contents — its own logic only needs the `attraction_uid` column of whatever `recommend_fn` returns, compared against `extract_ground_truth()`'s output. This keeps `evaluate_model()` independent of attraction attributes entirely, consistent with it being a model-agnostic evaluation loop rather than a data-processing step.
@@ -1380,15 +1381,15 @@ No implementation code, per your instruction.
   - `cf_summary` (`pd.DataFrame`) — the aggregated summary returned by `evaluate_model()` for CF
 - **Returns:** a comparison `DataFrame` with one row per model and one column per evaluation metric (`model_name`, `precision_at_k`, `recall_at_k`, `f1_at_k`, `coverage`, `evaluated_user_count`, `coverage_user_count`, `total_test_user_count`) — i.e. CBF and CF as two rows, directly comparable column by column.
 - **Responsibility:** concatenate both models' summaries into the final side-by-side comparison table (Section 6), preserving the raw counts alongside each ratio so neither `coverage` nor the accuracy metrics are reported as a bare percentage without its denominator visible. No additional metrics are computed here — this function only concatenates the aggregated summaries already returned by `evaluate_model()`; it performs no additional statistical testing (e.g. paired t-test, Wilcoxon signed-rank test), which is out of scope for this project.
-- **Dependencies:** `evaluate_model()` outputs for both models (computed beforehand, typically in `04_evaluation.ipynb`).
+- **Dependencies:** `evaluate_model()` outputs for both models (computed beforehand, typically in `05_evaluation.ipynb`).
 
 ### `run_full_evaluation(...)` *(optional convenience function)*
 - **Parameters:** all inputs needed to run both models' evaluations and the comparison in one call (train/test data, both models' recommend functions and `model_context` dicts, shared `top_n`)
 - **Returns:** the final comparison table
-- **Responsibility:** orchestrates `evaluate_model()` for CBF, `evaluate_model()` for CF, and `compare_models()`, mirroring the single-entry-point pattern already established by Phase 2's `preprocess_pipeline()`. This is optional — not explicitly required by the function list above, but recommended for consistency with the rest of the project's architecture, and to give `04_evaluation.ipynb` one clean call rather than three separate ones. This function is provided purely as a convenience wrapper and does not introduce any additional evaluation logic beyond calling the three functions above in sequence.
+- **Responsibility:** orchestrates `evaluate_model()` for CBF, `evaluate_model()` for CF, and `compare_models()`, mirroring the single-entry-point pattern already established by Phase 2's `preprocess_pipeline()`. This is optional — not explicitly required by the function list above, but recommended for consistency with the rest of the project's architecture, and to give `05_evaluation.ipynb` one clean call rather than three separate ones. This function is provided purely as a convenience wrapper and does not introduce any additional evaluation logic beyond calling the three functions above in sequence.
 - **Dependencies:** `evaluate_model()`, `compare_models()`.
 
-**Public interface note:** `evaluation.py` should expose `evaluate_model()` and `compare_models()` (or `run_full_evaluation()`, if implemented) as its public interface. `precision_at_k()`, `recall_at_k()`, `f1_at_k()`, `coverage()`, and `extract_ground_truth()` are internal helpers, not intended to be called directly by `04_evaluation.ipynb` or `app.py`.
+**Public interface note:** `evaluation.py` should expose `evaluate_model()` and `compare_models()` (or `run_full_evaluation()`, if implemented) as its public interface. `precision_at_k()`, `recall_at_k()`, `f1_at_k()`, `coverage()`, and `extract_ground_truth()` are internal helpers, not intended to be called directly by `05_evaluation.ipynb` or `app.py`.
 
 ### Complete function list for `src/evaluation.py`
 
@@ -1683,7 +1684,7 @@ As with every previous phase, this separates into two lifetimes:
 - **Responsibility:** pure display logic — render the recommendation table if `recommendations` is non-empty, or the cold-start message (naming the specific model and its own known limitation) if it is empty. The function only displays the `DataFrame` returned by the recommendation module. **No sorting, ranking, filtering, or other post-processing is performed in `app.py`** — the `DataFrame` it receives is already final, exactly as returned by Phase 3 or Phase 4.
 - **Dependencies:** none beyond Streamlit's own display primitives.
 
-**On `evaluation.py`:** this design deliberately does not use `evaluation.py` at all, live or otherwise. The prototype's scope is generating and displaying recommendations, not reporting evaluation metrics — Phase 5's results remain a notebook/report deliverable (`04_evaluation.ipynb`), consistent with evaluation being established as an offline-only step with no runtime role.
+**On `evaluation.py`:** this design deliberately does not use `evaluation.py` at all, live or otherwise. The prototype's scope is generating and displaying recommendations, not reporting evaluation metrics — Phase 5's results remain a notebook/report deliverable (`05_evaluation.ipynb`), consistent with evaluation being established as an offline-only step with no runtime role.
 
 ---
 

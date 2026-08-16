@@ -39,3 +39,16 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+
+# Project local-only / developer notes & scratch files
+PROJECT_PROGRESS.md
+PROJECT_SPEC.md
+check_dataset.py
+docs/project_progress.md
+docs/chapter1_notes.md
+docs/chapter2_notes.md
+docs/literature_matrix.xlsx
+docs/research_questions.md
+scratch/
+scripts/
+nominatim_validation_report_final.md
