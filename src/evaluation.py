@@ -199,7 +199,7 @@ def evaluate_model(
 
     # Determine the model name
     if recommend_fn.__name__ == "recommend_attractions_cf":
-        model_name = "Collaborative Filtering"
+        model_name = "User-Based Collaborative Filtering (UBCF)"
     elif recommend_fn.__name__ == "recommend_attractions":
         model_name = "Content-Based Filtering"
     else:
