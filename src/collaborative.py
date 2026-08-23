@@ -50,7 +50,6 @@ def build_user_item_matrix(
 
     return user_item_matrix, user_index, attraction_index
 
-
 def build_user_similarity_matrix(user_item_matrix: np.ndarray) -> np.ndarray:
     """
     Calculates pairwise user-user cosine similarity from user_item_matrix.
@@ -58,49 +57,80 @@ def build_user_similarity_matrix(user_item_matrix: np.ndarray) -> np.ndarray:
     Cosine similarity is computed using only overlapping rated items.
 
     Args:
-        user_item_matrix (np.ndarray): Sparse user-item matrix of shape (n_users, n_items).
+        user_item_matrix (np.ndarray): User-item matrix of shape
+            (n_users, n_items).
 
     Returns:
-        np.ndarray: Symmetric cosine similarity matrix of shape (n_users, n_users).
+        np.ndarray: User-user cosine similarity matrix.
     """
-    n_users = user_item_matrix.shape[0]
 
-    # Create binary mask of observed ratings: True where rating is present
+    # Create binary mask of observed ratings
     mask = ~np.isnan(user_item_matrix)
 
-    # Zero-out NaNs for dot product computation
-    matrix_zeroed = np.nan_to_num(user_item_matrix, nan=0.0)
+    # Replace missing ratings with zero
+    matrix_zeroed = np.nan_to_num(
+        user_item_matrix,
+        nan=0.0,
+    )
 
-    # Dot product of ratings: shape (n_users, n_users)
-    dot_products = matrix_zeroed @ matrix_zeroed.T
-
-    # Squared ratings per element
+    # Squared ratings are used for cosine similarity norms
     matrix_squared = matrix_zeroed ** 2
 
-    # Pairwise overlap squared norms
-    # norm_sq[i, j] = sum of squared ratings of user i for items rated by both user i and user j
-    norm_sq_i = matrix_squared @ mask.T
-    norm_sq_j = mask @ matrix_squared.T
+    # Calculate dot products between all user pairs
+    dot_products = (
+        matrix_zeroed
+        @ matrix_zeroed.T
+    )
 
-    # Pairwise norms
+    # Convert observation mask for matrix calculation
+    mask_float = mask.astype(float)
+
+    # Calculate norms using only overlapping rated attractions
+    norm_sq_i = (
+        matrix_squared
+        @ mask_float.T
+    )
+
+    norm_sq_j = (
+        mask_float
+        @ matrix_squared.T
+    )
+
     norms_i = np.sqrt(norm_sq_i)
     norms_j = np.sqrt(norm_sq_j)
 
-    denominator = norms_i * norms_j
+    denominator = (
+        norms_i * norms_j
+    )
 
-    # Compute similarity matrix, handling zero-division
-    similarity_matrix = np.zeros((n_users, n_users), dtype=np.float64)
+    # Create similarity matrix
+    similarity_matrix = np.zeros_like(
+        dot_products,
+        dtype=float,
+    )
+
+    # Avoid division by zero
     valid_mask = denominator > 0.0
-    similarity_matrix[valid_mask] = dot_products[valid_mask] / denominator[valid_mask]
 
-    # Clip similarity values to [0.0, 1.0] bound
-    similarity_matrix = np.clip(similarity_matrix, 0.0, 1.0)
+    similarity_matrix[valid_mask] = (
+        dot_products[valid_mask]
+        / denominator[valid_mask]
+    )
 
-    # Set diagonal self-similarity to 1.0
-    np.fill_diagonal(similarity_matrix, 1.0)
+    # Keep cosine similarity between 0 and 1
+    similarity_matrix = np.clip(
+        similarity_matrix,
+        0.0,
+        1.0,
+    )
+
+    # A user is fully similar to themselves
+    np.fill_diagonal(
+        similarity_matrix,
+        1.0,
+    )
 
     return similarity_matrix
-
 
 def find_nearest_neighbors(
     tourist_id: int,

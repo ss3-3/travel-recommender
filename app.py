@@ -7,7 +7,6 @@ User-Based Collaborative Filtering, and model comparison for academic demonstrat
 
 import textwrap
 from pathlib import Path
-from typing import Tuple
 import pandas as pd
 import streamlit as st
 
@@ -27,7 +26,10 @@ from src.collaborative import (
     build_user_similarity_matrix,
     recommend_attractions_cf,
 )
-from src.itinerary import build_itinerary, load_coordinates
+from src.itinerary import (
+    build_one_day_itinerary,
+    load_coordinates,
+)
 from src.itinerary_evaluation import evaluate_itinerary
 
 
@@ -241,7 +243,7 @@ def render_overview_page(attraction_df: pd.DataFrame, interactions_df: pd.DataFr
     st.markdown("### 🏠 Overview")
     st.write(
         "Welcome to the **Travel Destination Recommendation System**. This system is an interactive academic prototype "
-        "designed to provide personalized tourist attraction recommendations and generate day-by-day travel itineraries."
+        "designed to provide personalized tourist attraction recommendations and generate one-day multi-destination travel itineraries."
     )
     
     st.markdown("#### System Workflow")
@@ -261,7 +263,7 @@ def render_overview_page(attraction_df: pd.DataFrame, interactions_df: pd.DataFr
                 <div style="font-size: 24px; color: #888888; font-weight: bold;">→</div>
                 <div style="background-color: #e8f8f5; border: 1px solid #a3e4d7; border-radius: 8px; padding: 15px; flex: 1; text-align: center; min-width: 150px;">
                     <h5 style="margin: 0 0 5px 0; color: #0e6251; font-weight: 700;">3. Itinerary</h5>
-                    <p style="margin: 0; font-size: 12px; color: #117864;">Geographic day clustering and stop sequencing</p>
+                    <p style="margin: 0; font-size: 12px; color: #117864;">Geographic selection and one-day route sequencing</p>
                 </div>
                 <div style="font-size: 24px; color: #888888; font-weight: bold;">→</div>
                 <div style="background-color: #eaf2f8; border: 1px solid #a9cce3; border-radius: 8px; padding: 15px; flex: 1; text-align: center; min-width: 150px;">
@@ -452,126 +454,79 @@ def render_comparison_analysis(cbf_recs: pd.DataFrame, cf_recs: pd.DataFrame):
         "whereas Collaborative Filtering recommends attractions based on rating patterns of similar users."
     )
 
-
-def render_day_itinerary(grouped, day_num: int):
-    """
-    Renders a single day's vertical timeline stops, or a warning if empty.
-    """
-    if day_num not in grouped.groups:
-        st.info(f"Day {day_num}: No recommended attractions assigned to this day.")
-        return
-
-    group = grouped.get_group(day_num)
-    group_sorted = group.sort_values("stop_order")
-
-    day_dist = group_sorted["distance_from_prev_km"].sum()
-    stops_count = len(group_sorted)
-    stop_names = " → ".join(group_sorted["attraction_name"].tolist())
-
-    # Daily Summary Card
-    summary_html = f"""
-    <div style="background-color: #F8F9FB; border-left: 5px solid #1D4ED8; padding: 15px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-            <div>
-                <span style="font-size: 13px; font-weight: 700; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.5px;">DAY {day_num} ROUTE</span>
-                <span style="margin-left: 8px; font-size: 13px; color: #64748B;">({stop_names})</span>
-            </div>
-            <div style="font-size: 13px; color: #1E293B; font-weight: 500;">
-                <b>{stops_count}</b> stops &middot; <b>{day_dist:.2f} km</b> total distance
-            </div>
-        </div>
-    </div>
-    """
-    st.markdown(textwrap.dedent(summary_html), unsafe_allow_html=True)
-
-    # Timeline list
-    for idx, (_, row) in enumerate(group_sorted.iterrows()):
-        stop = int(row["stop_order"])
-        name = row["attraction_name"]
-        city = row["city"]
-        score = row["recommendation_score"]
-        lat = row["latitude"]
-        lon = row["longitude"]
-
-        stop_indicator_line = f"<div style='width: 2px; background-color: #E5E7EB; flex-grow: 1; min-height: 25px;'></div>" if idx < len(group_sorted) - 1 else ""
-
-        stop_html = (
-            f'<div style="display: flex; margin-bottom: 0px; align-items: stretch;">'
-            f'<div style="display: flex; flex-direction: column; align-items: center; margin-right: 15px;">'
-            f'<div style="background-color: #1D4ED8; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; z-index: 2; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">{stop}</div>'
-            f'{stop_indicator_line}'
-            f'</div>'
-            f'<div style="flex-grow: 1; padding-bottom: 15px; padding-top: 2px;">'
-            f'<span style="font-weight: 700; font-size: 15px; color: #1E293B;">{name}</span>'
-            f'<span style="color: #64748B; font-size: 13px; margin-left: 5px;">📍 {city}</span><br/>'
-            f'<span style="font-size: 12px; color: #64748B;">Score: <b>{score:.4f}</b> | Coordinates: ({lat:.4f}, {lon:.4f})</span>'
-            f'</div>'
-            f'</div>'
-        )
-        st.markdown(stop_html, unsafe_allow_html=True)
-
-        if idx < len(group_sorted) - 1:
-            next_row = group_sorted.iloc[idx + 1]
-            next_dist = next_row["distance_from_prev_km"]
-            transition_html = (
-                f'<div style="display: flex; align-items: center; margin-left: 13px; margin-top: -15px; margin-bottom: 5px;">'
-                f'<div style="width: 2px; background-color: #E5E7EB; height: 35px; margin-right: 20px;"></div>'
-                f'<div style="font-size: 12px; color: #64748B; font-weight: 500; background-color: #F8F9FB; padding: 3px 8px; border-radius: 4px; border: 1px solid #E5E7EB; display: inline-flex; align-items: center;">'
-                f'🚗 {next_dist:.2f} km'
-                f'</div>'
-                f'</div>'
-            )
-            st.markdown(transition_html, unsafe_allow_html=True)
-
-
 def render_itinerary_ui(
     itinerary_df: pd.DataFrame,
     title: str,
-    num_days: int,
+    num_stops: int,
     top_n_candidates: int,
     excluded_df: "pd.DataFrame | None" = None,
 ):
     """
-    Renders the day-by-day itinerary in a highly visual vertical timeline.
+    Renders the generated one-day itinerary in a visual vertical timeline.
     """
     st.subheader(title)
 
-    excluded_count = len(excluded_df) if excluded_df is not None and not excluded_df.empty else 0
+    excluded_count = (
+        len(excluded_df)
+        if excluded_df is not None and not excluded_df.empty
+        else 0
+    )
+
     st.info(
-        f"📋 **Recommended Attractions**: {top_n_candidates} candidates | "
-        f"📍 **Final Itinerary Attractions**: {len(itinerary_df)} selected | "
-        f"🚫 **Not Selected**: {excluded_count} | "
-        f"🗓️ **Travel Days**: {num_days}"
+        f"📋 **Top-N Recommendations**: {top_n_candidates} candidates | "
+        f"📍 **Requested Destinations (M)**: {num_stops} | "
+        f"🚫 **Final Itinerary Attractions**: {len(itinerary_df)} selected | "
+        f"🗓️ **Not Selected**: {excluded_count}"
     )
 
     if itinerary_df.empty:
         st.warning("No itinerary could be generated from the available recommendation candidates.")
     else:
-        # Group by day
-        grouped = itinerary_df.groupby("day")
+       # Display the one-day itinerary
+        itinerary_sorted = itinerary_df.sort_values("stop_order").reset_index(drop=True)
 
-        # Decide between tabs and selectbox based on num_days
-        if num_days <= 5:
-            tab_labels = []
-            for day in range(1, num_days + 1):
-                count = len(grouped.get_group(day)) if day in grouped.groups else 0
-                tab_labels.append(f"Day {day} ({count} stops)")
-            
-            day_tabs = st.tabs(tab_labels)
-            for day_idx, day_tab in enumerate(day_tabs):
-                day_num = day_idx + 1
-                with day_tab:
-                    render_day_itinerary(grouped, day_num)
-        else:
-            options = []
-            for day in range(1, num_days + 1):
-                count = len(grouped.get_group(day)) if day in grouped.groups else 0
-                options.append(f"Day {day} ({count} stops)")
-                
-            selected_label = st.selectbox("Select Day to View", options=options, key=f"sel_{title.lower().replace(' ', '_')}")
-            day_num = int(selected_label.split(" ")[1])
-            render_day_itinerary(grouped, day_num)
+        total_distance = itinerary_sorted["distance_from_prev_km"].fillna(0).sum()
 
+        route_names = " → ".join(
+            itinerary_sorted["attraction_name"].astype(str).tolist()
+        )
+
+        st.markdown("### 🗺️ One-Day Route")
+
+        st.markdown(
+            f"**Route:** {route_names}"
+        )
+
+        st.caption(
+            f"{len(itinerary_sorted)} destination(s) | "
+            f"Total travel distance: {total_distance:.2f} km"
+        )
+
+        # Display each destination according to route order
+        for index, row in itinerary_sorted.iterrows():
+            stop_order = int(row["stop_order"])
+            attraction_name = row["attraction_name"]
+            city = row["city"]
+            recommendation_score = row["recommendation_score"]
+
+            st.markdown(
+                f"**Stop {stop_order}: {attraction_name}**"
+            )
+
+            st.caption(
+                f"📍 {city} | "
+                f"Recommendation Score: {recommendation_score:.4f}"
+            )
+
+            # Show distance to the next destination
+            if index < len(itinerary_sorted) - 1:
+                next_distance = itinerary_sorted.iloc[
+                    index + 1
+                ]["distance_from_prev_km"]
+
+                st.markdown(
+                    f"↓ 🚗 {next_distance:.2f} km"
+                )
     # Add a CSV download button
     if not itinerary_df.empty:
         csv_data = itinerary_df.to_csv(index=False).encode("utf-8")
@@ -593,8 +548,8 @@ def render_itinerary_ui(
         ):
             st.caption(
                 "These attractions were recommended but were not included in the current "
-                "itinerary because of geographic feasibility, daily capacity, or lower "
-                "priority among compatible options."
+                "one-day itinerary because of geographic suitability or lower priority "
+                "among compatible options."
             )
             display_cols = [
                 col
@@ -624,79 +579,96 @@ def render_itinerary_ui(
 
 def render_evaluation_details(evaluation: dict, title: str):
     """
-    Renders diagnostic metrics, day balance summaries, and per-day tables.
+    Renders evaluation metrics for the generated one-day itinerary.
     """
     if not evaluation:
         st.warning("No evaluation metrics available.")
         return
 
-    st.markdown("##### 🗺️ Core Spatial Metrics")
-    carryover_rate = evaluation.get("candidate_carryover_rate", 0.0) * 100
-    avg_consec = evaluation.get("avg_consecutive_distance", {})
-    total_dist = evaluation.get("total_distance_per_day", {})
-    compactness = evaluation.get("compactness_per_day", {})
+    st.subheader(title)
+
+    # Retrieve one-day itinerary evaluation metrics
+    carryover_rate = (
+        evaluation.get("candidate_carryover_rate", 0.0) * 100
+    )
+    avg_consecutive_distance = evaluation.get(
+        "avg_consecutive_distance",
+        0.0,
+    )
+    total_travel_distance = evaluation.get(
+        "total_travel_distance",
+        0.0,
+    )
+    geographic_compactness = evaluation.get(
+        "geographic_compactness",
+        0.0,
+    )
+
+    # Display N/A when distance-based metrics cannot be calculated
+    if avg_consecutive_distance is None:
+        avg_consecutive_display = "N/A"
+    else:
+        avg_consecutive_display = (
+            f"{avg_consecutive_distance:.2f} km"
+        )
+
+    if geographic_compactness is None:
+        compactness_display = "N/A"
+    else:
+        compactness_display = (
+            f"{geographic_compactness:.2f} km"
+        )
+
+    st.markdown("##### 🗺️ One-Day Itinerary Metrics")
 
     col1, col2, col3, col4 = st.columns(4)
+
     with col1:
-        st.metric("Candidate Carryover Rate", f"{carryover_rate:.1f}%", help="Proportion of recommended candidates carried over into the final itinerary.")
-    with col2:
-        st.metric("Avg Consecutive Distance", f"{avg_consec.get('overall', 0.0):.2f} km", help="Average geodetic distance between consecutive stops.")
-    with col3:
-        st.metric("Total Travel Distance", f"{total_dist.get('overall', 0.0):.2f} km", help="Sum of travel distances across all days.")
-    with col4:
-        st.metric("Geographic Compactness", f"{compactness.get('overall', 0.0):.2f} km", help="Average distance of stops to their daily geographic centroid.")
-
-    st.markdown("##### 📊 Day Balance Analysis")
-    balance = evaluation.get("day_balance", {})
-    if balance:
-        per_day_counts = balance.get("per_day_counts", {})
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Minimum Stops", f"{balance.get('min_stops', 0)}")
-        with col2:
-            st.metric("Maximum Stops", f"{balance.get('max_stops', 0)}")
-        with col3:
-            avg_stops = sum(per_day_counts.values()) / len(per_day_counts) if per_day_counts else 0.0
-            st.metric("Average Stops", f"{avg_stops:.1f}")
-        with col4:
-            st.metric("Standard Deviation", f"{balance.get('std_dev', 0.0):.2f}")
-
-        # Structured Table for stop counts per day
-        rows_counts = [{"Day": f"Day {d_key.split('_')[1]}", "Stop Count": f"{c} stop" + ("s" if c != 1 else "")} for d_key, c in per_day_counts.items()]
-        counts_df = pd.DataFrame(rows_counts)
-        st.dataframe(counts_df, hide_index=True, use_container_width=True)
-
-    # Build comparison DataFrame
-    day_keys = sorted(list(set(avg_consec.keys()) | set(total_dist.keys()) | set(compactness.keys())))
-    
-    rows = []
-    for key in day_keys:
-        display_name = "Overall" if key == "overall" else f"Day {key.split('_')[1]}"
-        rows.append({
-            "Day/Scope": display_name,
-            "Avg Consecutive Distance (km)": avg_consec.get(key, 0.0),
-            "Total Travel Distance (km)": total_dist.get(key, 0.0),
-            "Geographic Compactness (km to centroid)": compactness.get(key, 0.0)
-        })
-
-    metrics_df = pd.DataFrame(rows)
-    if len(metrics_df) > 1:
-        overall_row = metrics_df[metrics_df["Day/Scope"] == "Overall"]
-        other_rows = metrics_df[metrics_df["Day/Scope"] != "Overall"]
-        metrics_df = pd.concat([other_rows, overall_row], ignore_index=True)
-
-    with st.expander("📋 View Detailed Spatial Breakdown Table"):
-        st.dataframe(
-            metrics_df,
-            hide_index=True,
-            use_container_width=True,
-            column_config={
-                "Avg Consecutive Distance (km)": st.column_config.NumberColumn(format="%.2f km"),
-                "Total Travel Distance (km)": st.column_config.NumberColumn(format="%.2f km"),
-                "Geographic Compactness (km to centroid)": st.column_config.NumberColumn(format="%.2f km"),
-            }
+        st.metric(
+            "Candidate Carryover Rate",
+            f"{carryover_rate:.1f}%",
+            help=(
+                "Percentage of Top-N recommended attractions "
+                "included in the final one-day itinerary."
+            ),
         )
+
+    with col2:
+        st.metric(
+            "Avg Consecutive Distance",
+            avg_consecutive_display,
+            help=(
+                "Average distance between consecutive "
+                "attractions in the generated route."
+            ),
+        )
+
+    with col3:
+        st.metric(
+            "Total Travel Distance",
+            f"{total_travel_distance:.2f} km",
+            help=(
+                "Total Haversine distance travelled between "
+                "all consecutive attractions."
+            ),
+        )
+
+    with col4:
+        st.metric(
+            "Geographic Compactness",
+            compactness_display,
+            help=(
+                "Average distance of the selected attractions "
+                "from their geographic centroid."
+            ),
+        )
+
+    st.caption(
+        "Lower distance and compactness values indicate a more "
+        "geographically concentrated itinerary, while a higher "
+        "candidate carryover rate indicates that more Top-N "
+        "recommendations were retained."
+    )
 
 
 def main():
@@ -740,7 +712,7 @@ def main():
     with st.sidebar.expander("ℹ️ About This Project"):
         st.write(
             "This system compares Content-Based and Collaborative Filtering models (RO1-RO3) "
-            "and generates clustered day-by-day itineraries (RO4-RO5)."
+            "and generates geographically suitable one-day itineraries (RO4-RO5)."
         )
 
     # Hero / Header Section on Main Panel
@@ -804,7 +776,7 @@ def main():
                 "itinerary",
                 "itinerary_cbf",
                 "itinerary_cf",
-                "itinerary_num_days",
+                "itinerary_num_stops",
                 "evaluation",
                 "evaluation_cbf",
                 "evaluation_cf",
@@ -883,14 +855,14 @@ def main():
             st.info("💡 Please set your preferences above and click 'Search Destinations' to view recommendations.")
 
     elif st.session_state["nav_choice"] == "🗺️ Itinerary":
-        st.markdown("### 🗺️ Day-by-Day Itinerary Planner")
+        st.markdown("### 🗺️ One-Day Itinerary Planner")
         
         # Check if recommendations exist in session state
         rec_len = 0
         curr_algo = st.session_state.get("algorithm")
         if curr_algo:
             if curr_algo == "Compare Both Models" and "cbf_recs" in st.session_state and "cf_recs" in st.session_state:
-                rec_len = max(len(st.session_state["cbf_recs"]), len(st.session_state["cf_recs"]))
+                rec_len = min(len(st.session_state["cbf_recs"]), len(st.session_state["cf_recs"]))
             elif curr_algo != "Compare Both Models" and "recommendations" in st.session_state:
                 rec_len = len(st.session_state["recommendations"])
 
@@ -898,73 +870,47 @@ def main():
             st.info("🎯 Please search destinations and generate recommendations first on the 'Recommendations' tab before building an itinerary.")
         else:
             st.write(
-                "Select geographically feasible attractions from your recommendations "
-                "and group them into a day-by-day travel plan."
+                "Select geographically suitable attractions from your recommendations "
+                "and group them into a one-day travel plan."
             )
 
-            col_days, col_pace = st.columns(2)
-            with col_days:
-                num_days = st.number_input(
-                    "Number of Travel Days",
-                    min_value=1,
-                    max_value=rec_len,
-                    value=min(3, rec_len),
-                    step=1,
-                    help="Requested trip length. Some days may remain empty if fewer compatible attractions are selected.",
-                )
-            with col_pace:
-                travel_pace = st.selectbox(
-                    "Travel Pace",
-                    options=["Relaxed", "Balanced", "Packed"],
-                    index=1,
-                    help="Relaxed prefers 1-2 stops/day, Balanced prefers 1-2 with occasional 3, Packed prefers 2-3.",
-                )
+            num_stops = st.number_input(
+                "Number of Destinations for the One-Day Itinerary (M)",
+                min_value=1,
+                max_value=rec_len,
+                value=1,
+                step=1,
+                help=(
+                    "Select how many destinations you want to include in the one-day itinerary. "
+                    "The selected number M must be less than or equal to the number of Top-N recommendations."
+                ),
+            )
 
-            # Calculate active count for validation (attractions with valid coordinates)
             coordinates_df = load_coordinates_df()
-            from src.itinerary import attach_coordinates
-            if curr_algo == "Compare Both Models":
-                cbf_recs = st.session_state.get("cbf_recs", pd.DataFrame())
-                cf_recs = st.session_state.get("cf_recs", pd.DataFrame())
-                cbf_cand = attach_coordinates(cbf_recs, coordinates_df)
-                cf_cand = attach_coordinates(cf_recs, coordinates_df)
-                active_count = min(
-                    cbf_cand["attraction_uid"].nunique() if "attraction_uid" in cbf_cand.columns else len(cbf_cand),
-                    cf_cand["attraction_uid"].nunique() if "attraction_uid" in cf_cand.columns else len(cf_cand),
-                )
-            else:
-                recs = st.session_state.get("recommendations", pd.DataFrame())
-                active_candidates = attach_coordinates(recs, coordinates_df)
-                active_count = (
-                    active_candidates["attraction_uid"].nunique()
-                    if "attraction_uid" in active_candidates.columns
-                    else len(active_candidates)
-                )
 
             # Input validation check
-            if num_days < 1:
-                st.error("Number of travel days must be at least 1.")
-                # Clear stale itinerary and evaluation states to prevent stale/incorrect views
+            if num_stops < 1:
+                st.error("Number of itinerary destinations must be at least 1.")
+                # Clear stale itinerary and evaluation states
                 for key in [
                     "itinerary", "itinerary_cbf", "itinerary_cf",
                     "excluded", "excluded_cbf", "excluded_cf",
                     "evaluation", "evaluation_cbf", "evaluation_cf",
-                    "itinerary_num_days", "itinerary_travel_pace", "itinerary_error",
+                    "itinerary_num_stops", "itinerary_error",
                 ]:
                     if key in st.session_state:
                         del st.session_state[key]
-            elif num_days > active_count:
+            elif num_stops > rec_len:
                 st.error(
-                    f"Only {active_count} recommendation candidates are available, so a maximum of "
-                    f"{active_count} travel days can be populated without duplicating attractions. "
-                    "Please increase Top-N or reduce the number of travel days."
+                     f"The number of itinerary destinations cannot exceed "
+                     f"the Top-N recommendation size ({rec_len})."
                 )
-                # Clear stale itinerary and evaluation states to prevent stale/incorrect views
+                # Clear stale itinerary and evaluation states
                 for key in [
                     "itinerary", "itinerary_cbf", "itinerary_cf",
                     "excluded", "excluded_cbf", "excluded_cf",
                     "evaluation", "evaluation_cbf", "evaluation_cf",
-                    "itinerary_num_days", "itinerary_travel_pace", "itinerary_error",
+                    "itinerary_num_stops", "itinerary_error",
                 ]:
                     if key in st.session_state:
                         del st.session_state[key]
@@ -972,24 +918,24 @@ def main():
                 if "itinerary_error" in st.session_state:
                     st.error(st.session_state["itinerary_error"])
 
-                itinerary_btn = st.button("Generate Itinerary", type="primary")
+                itinerary_btn = st.button("Generate One-Day Itinerary", type="primary")
 
-                if itinerary_btn or "itinerary_num_days" in st.session_state:
-                    # Reset itinerary if number of days has changed since last generation
-                    if st.session_state.get("itinerary_num_days") != num_days:
+                if itinerary_btn or "itinerary_num_stops" in st.session_state:
+                    # Reset itinerary if the requested number of destinations has changed
+                    if st.session_state.get("itinerary_num_stops") != num_stops:
                         for key in ["itinerary", "itinerary_cbf", "itinerary_cf", "evaluation", "evaluation_cbf", "evaluation_cf", "itinerary_error"]:
                             if key in st.session_state:
                                 del st.session_state[key]
 
-                    if itinerary_btn or "itinerary_num_days" not in st.session_state:
+                    if itinerary_btn or "itinerary_num_stops" not in st.session_state:
                         with st.spinner("Generating itinerary and calculating metrics..."):
                             try:
                                 if curr_algo == "Compare Both Models":
                                     cbf_recs = st.session_state["cbf_recs"]
                                     cf_recs = st.session_state["cf_recs"]
                                     if not cbf_recs.empty:
-                                        itinerary_cbf, excluded_cbf = build_itinerary(
-                                            cbf_recs, coordinates_df, num_days, travel_pace=travel_pace, return_excluded=True
+                                        itinerary_cbf, excluded_cbf = build_one_day_itinerary(
+                                            cbf_recs, coordinates_df, num_stops, return_excluded=True
                                         )
                                         st.session_state["itinerary_cbf"] = itinerary_cbf
                                         st.session_state["excluded_cbf"] = excluded_cbf
@@ -997,8 +943,8 @@ def main():
                                             itinerary_cbf, cbf_recs
                                         )
                                     if not cf_recs.empty:
-                                        itinerary_cf, excluded_cf = build_itinerary(
-                                            cf_recs, coordinates_df, num_days, travel_pace=travel_pace, return_excluded=True
+                                        itinerary_cf, excluded_cf = build_one_day_itinerary(
+                                            cf_recs, coordinates_df, num_stops, return_excluded=True
                                         )
                                         st.session_state["itinerary_cf"] = itinerary_cf
                                         st.session_state["excluded_cf"] = excluded_cf
@@ -1008,30 +954,29 @@ def main():
                                 else:
                                     recs = st.session_state["recommendations"]
                                     if not recs.empty:
-                                        itinerary, excluded = build_itinerary(
-                                            recs, coordinates_df, num_days, travel_pace=travel_pace, return_excluded=True
+                                        itinerary, excluded = build_one_day_itinerary(
+                                            recs, coordinates_df, num_stops, return_excluded=True
                                         )
                                         st.session_state["itinerary"] = itinerary
                                         st.session_state["excluded"] = excluded
                                         st.session_state["evaluation"] = evaluate_itinerary(
                                             itinerary, recs
                                         )
-                                st.session_state["itinerary_num_days"] = num_days
-                                st.session_state["itinerary_travel_pace"] = travel_pace
+                                st.session_state["itinerary_num_stops"] = num_stops
                                 if "itinerary_error" in st.session_state:
                                     del st.session_state["itinerary_error"]
                                 st.rerun()
                             except ValueError as e:
                                 st.session_state["itinerary_error"] = str(e)
                                 # Clear stale itinerary and evaluation states to prevent stale/incorrect views
-                                for key in ["itinerary", "itinerary_cbf", "itinerary_cf", "evaluation", "evaluation_cbf", "evaluation_cf", "itinerary_num_days"]:
+                                for key in ["itinerary", "itinerary_cbf", "itinerary_cf", "evaluation", "evaluation_cbf", "evaluation_cf", "itinerary_num_stops"]:
                                     if key in st.session_state:
                                         del st.session_state[key]
                                 st.rerun()
 
                 # Render the generated itineraries
-                if "itinerary_num_days" in st.session_state:
-                    saved_days = st.session_state["itinerary_num_days"]
+                if "itinerary_num_stops" in st.session_state:
+                    saved_stops = st.session_state["itinerary_num_stops"]
                     if curr_algo == "Compare Both Models":
                         tab1, tab2 = st.tabs(["Content-Based Filtering Itinerary", "User-Based Collaborative Filtering Itinerary"])
                         with tab1:
@@ -1039,7 +984,7 @@ def main():
                                 render_itinerary_ui(
                                     st.session_state["itinerary_cbf"],
                                     "Content-Based Filtering Itinerary",
-                                    saved_days,
+                                    saved_stops,
                                     len(st.session_state.get("cbf_recs", pd.DataFrame())),
                                     excluded_df=st.session_state.get("excluded_cbf", pd.DataFrame()),
                                 )
@@ -1048,7 +993,7 @@ def main():
                                 render_itinerary_ui(
                                     st.session_state["itinerary_cf"],
                                     "User-Based Collaborative Filtering Itinerary",
-                                    saved_days,
+                                    saved_stops,
                                     len(st.session_state.get("cf_recs", pd.DataFrame())),
                                     excluded_df=st.session_state.get("excluded_cf", pd.DataFrame()),
                                 )
@@ -1057,7 +1002,7 @@ def main():
                             render_itinerary_ui(
                                 st.session_state["itinerary"],
                                 f"{curr_algo} Itinerary",
-                                saved_days,
+                                saved_stops,
                                 len(st.session_state.get("recommendations", pd.DataFrame())),
                                 excluded_df=st.session_state.get("excluded", pd.DataFrame()),
                             )

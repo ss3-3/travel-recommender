@@ -831,3 +831,267 @@ def build_itinerary(
     )
 
     return (final_itinerary, excluded_df) if return_excluded else final_itinerary
+
+def build_one_day_itinerary(
+    recommendations_df: pd.DataFrame,
+    coordinates_df: pd.DataFrame,
+    num_stops: int,
+    return_excluded: bool = False,
+) -> Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame]]:
+    """
+    Generates a one-day itinerary from Top-N recommended attractions.
+
+    Top-N recommendations are treated as the candidate pool. The user selects
+    the number of destinations to include in the itinerary, where the requested
+    number must not exceed the number of recommendations.
+
+    Geographic compatibility is considered before the selected attractions
+    are ordered using Greedy Nearest-Neighbor.
+
+    Args:
+        recommendations_df: Recommendation output dataframe.
+        coordinates_df: Coordinates CSV dataframe.
+        num_stops: Requested number of destinations for the one-day itinerary.
+        return_excluded: If True, return (itinerary_df, excluded_df).
+
+    Returns:
+        Itinerary dataframe, or a tuple with excluded recommendations.
+    """
+    output_cols = [
+        "day",
+        "stop_order",
+        "attraction_uid",
+        "attraction_name",
+        "city",
+        "latitude",
+        "longitude",
+        "recommendation_score",
+        "distance_from_prev_km",
+    ]
+
+    empty_excluded = pd.DataFrame(
+        columns=EXCLUDED_OUTPUT_COLS
+    )
+
+    # Return an empty itinerary if no recommendations are available
+    if recommendations_df.empty:
+        empty_itinerary = pd.DataFrame(
+            columns=output_cols
+        )
+
+        if return_excluded:
+            return empty_itinerary, empty_excluded
+
+        return empty_itinerary
+
+    # Validate requested number of destinations
+    if num_stops < 1:
+        raise ValueError(
+            "Number of itinerary destinations must be at least 1."
+        )
+
+    # Attach coordinates to Top-N recommendations
+    candidates_df = _join_coordinates(
+        recommendations_df,
+        coordinates_df,
+    )
+
+    # Add recommendation rank if it is not available
+    if "rank" not in candidates_df.columns:
+        candidates_df["rank"] = range(
+            1,
+            len(candidates_df) + 1,
+        )
+
+    # Remove duplicate attractions
+    if "attraction_uid" in candidates_df.columns:
+        candidates_df = candidates_df.drop_duplicates(
+            subset=["attraction_uid"],
+            keep="first",
+        ).copy()
+    else:
+        candidates_df = candidates_df.drop_duplicates().copy()
+
+    candidates_df = candidates_df.reset_index(drop=True)
+
+    top_n_candidates = len(candidates_df)
+
+    # M cannot exceed Top-N
+    if num_stops > top_n_candidates:
+        raise ValueError(
+            "Number of itinerary destinations cannot exceed "
+            "the number of Top-N recommendations."
+        )
+
+    excluded_parts: List[pd.DataFrame] = []
+
+    # Identify recommendations with missing coordinates
+    missing_coords_mask = (
+        candidates_df["latitude"].isna()
+        | candidates_df["longitude"].isna()
+    )
+
+    if missing_coords_mask.any():
+        excluded_parts.append(
+            _build_excluded_df(
+                candidates_df[missing_coords_mask],
+                "missing_coordinates",
+            )
+        )
+
+    # Keep only attractions with valid coordinates
+    matched_df = candidates_df[
+        ~missing_coords_mask
+    ].copy()
+
+    if matched_df.empty:
+        empty_itinerary = pd.DataFrame(
+            columns=output_cols
+        )
+
+        excluded_df = (
+            pd.concat(
+                excluded_parts,
+                ignore_index=True,
+            )
+            if excluded_parts
+            else empty_excluded
+        )
+
+        if return_excluded:
+            return empty_itinerary, excluded_df
+
+        return empty_itinerary
+
+    # Set the maximum geographic radius for a one-day itinerary
+    max_one_day_radius_km = 50.0
+
+    best_group_indices = []
+    best_anchor_rank = float("inf")
+
+    # Try each recommendation as a possible geographic anchor
+    for anchor_idx, anchor_row in matched_df.iterrows():
+        anchor_lat = float(anchor_row["latitude"])
+        anchor_lon = float(anchor_row["longitude"])
+        anchor_rank = float(anchor_row["rank"])
+
+        current_group_indices = []
+
+        # Find recommendations located within 50 km of this anchor
+        for candidate_idx, candidate_row in matched_df.iterrows():
+            distance = haversine_distance(
+                anchor_lat,
+                anchor_lon,
+                float(candidate_row["latitude"]),
+                float(candidate_row["longitude"]),
+            )
+
+            if distance <= max_one_day_radius_km:
+                current_group_indices.append(candidate_idx)
+
+        # Prefer the group containing more nearby recommendations
+        if len(current_group_indices) > len(best_group_indices):
+            best_group_indices = current_group_indices
+            best_anchor_rank = anchor_rank
+
+        # If the group sizes are equal, prefer the better-ranked anchor
+        elif (
+            len(current_group_indices) == len(best_group_indices)
+            and anchor_rank < best_anchor_rank
+        ):
+            best_group_indices = current_group_indices
+            best_anchor_rank = anchor_rank
+
+    # Keep attractions from the strongest geographic group
+    selected_df = matched_df.loc[
+        best_group_indices
+    ].copy()
+
+    # Recommendations outside the selected geographic group are excluded
+    excluded_geo_df = matched_df.drop(
+        index=best_group_indices
+    ).copy()
+
+    if not excluded_geo_df.empty:
+        excluded_parts.append(
+            _build_excluded_df(
+                excluded_geo_df,
+                "geographically_incompatible",
+            )
+        )
+
+    # Prioritise selected attractions according to recommendation rank
+    selected_df = selected_df.sort_values(
+        "rank"
+    )
+
+    # Keep up to M destinations
+    if len(selected_df) > num_stops:
+        keep_df = selected_df.head(
+            num_stops
+        )
+
+        removed_df = selected_df.iloc[
+            num_stops:
+        ]
+
+        selected_df = keep_df.copy()
+
+        excluded_parts.append(
+            _build_excluded_df(
+                removed_df,
+                "not_selected",
+            )
+        )
+
+    if selected_df.empty:
+        empty_itinerary = pd.DataFrame(
+            columns=output_cols
+        )
+
+        excluded_df = (
+            pd.concat(
+                excluded_parts,
+                ignore_index=True,
+            )
+            if excluded_parts
+            else empty_excluded
+        )
+
+        if return_excluded:
+            return empty_itinerary, excluded_df
+
+        return empty_itinerary
+
+    # All selected attractions belong to one travel day
+    selected_df["day"] = 1
+
+    # Order attractions using Greedy Nearest-Neighbor
+    itinerary_df = order_day(
+        selected_df
+    )
+
+    itinerary_df[
+        "recommendation_score"
+    ] = itinerary_df.apply(
+        _recommendation_score,
+        axis=1,
+    )
+
+    final_itinerary = itinerary_df[
+        output_cols
+    ]
+
+    excluded_df = (
+        pd.concat(
+            excluded_parts,
+            ignore_index=True,
+        )
+        if excluded_parts
+        else empty_excluded
+    )
+
+    if return_excluded:
+        return final_itinerary, excluded_df
+
+    return final_itinerary
