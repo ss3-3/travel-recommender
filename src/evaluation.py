@@ -6,7 +6,7 @@ and Coverage) and evaluation orchestrators to compare Content-Based Filtering
 and Collaborative Filtering models fairly over held-out test data.
 """
 
-from typing import Callable, Dict, List, Set, Tuple, Union
+from typing import Callable, Dict, List, Tuple, Union
 import pandas as pd
 
 

@@ -185,9 +185,25 @@ def prepare_interactions(df: pd.DataFrame) -> pd.DataFrame:
     ]
 
     # Select columns representing interaction data
-    output_cols = ["tourist_id", "attraction_uid", "rating"]
+    output_cols = [
+    "tourist_id",
+    "attraction_uid",
+    "rating",
+    ]
 
-    return df_copy[output_cols]
+    interactions = df_copy[output_cols].copy()
+
+    # Combine repeated ratings from the same user for the same attraction
+    interactions = (
+        interactions
+        .groupby(
+            ["tourist_id", "attraction_uid"],
+            as_index=False,
+        )["rating"]
+        .mean()
+    )
+
+    return interactions
 
 
 def train_test_split_by_user(

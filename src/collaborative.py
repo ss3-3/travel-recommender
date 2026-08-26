@@ -15,7 +15,7 @@ def build_user_item_matrix(
     train_df: pd.DataFrame
 ) -> Tuple[np.ndarray, Dict[int, int], Dict[str, int]]:
     """
-    Pivots train_df into a sparse user-item matrix where missing entries are np.nan.
+    Pivots train_df into a user-item matrix where missing entries are np.nan.
 
     Args:
         train_df (pd.DataFrame): Training interactions DataFrame.

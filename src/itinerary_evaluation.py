@@ -14,7 +14,7 @@ import pandas as pd
 from src.itinerary import haversine_distance
 
 
-def avg_consecutive_distance(itinerary_df: pd.DataFrame) -> float:
+def avg_consecutive_distance(itinerary_df: pd.DataFrame) -> float | None:
     """
     Calculates the average Haversine distance between consecutive stops.
 
@@ -73,7 +73,7 @@ def total_travel_distance(itinerary_df: pd.DataFrame) -> float:
     )
 
 
-def geographic_compactness(itinerary_df: pd.DataFrame) -> float:
+def geographic_compactness(itinerary_df: pd.DataFrame) -> float | None:
     """
     Calculates the geographic compactness of the one-day itinerary.
 
@@ -101,9 +101,6 @@ def geographic_compactness(itinerary_df: pd.DataFrame) -> float:
     for col in required_cols:
         if col not in itinerary_df.columns:
             return 0.0
-
-    if len(itinerary_df) <= 1:
-        return 0.0
 
     # Calculate geographic centroid
     lat_centroid = itinerary_df["latitude"].mean()

@@ -330,9 +330,9 @@ def render_performance_section():
             "TF-IDF + Cosine Similarity",
             "KNN (K=20) + Cosine Similarity",
         ],
-        "Precision@10": [0.0049, 0.0046],
-        "Recall@10": [0.0237, 0.0227],
-        "F1-Score@10": [0.0080, 0.0075],
+        "Precision@10": [0.0040, 0.0085],
+        "Recall@10": [0.0208, 0.0392],
+        "F1-Score@10": [0.0066, 0.0138],
         "Coverage": ["100.0%", "100.0%"],
     }
     perf_df = pd.DataFrame(perf_data)
