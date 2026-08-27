@@ -1,3 +1,5 @@
+# Module Contribution: Soh Sook Shan (26WMR12721) - Content-Based Filtering (CBF)
+
 """
 Content-Based Filtering recommendation module.
 

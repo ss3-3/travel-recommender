@@ -1,3 +1,5 @@
+# Module Contribution: Soh Sook Shan (26WMR12721) & Goh Thong En (26WMR12713) - Itinerary Evaluation Metrics (joint work)
+
 # pyrefly: ignore [missing-import]
 """
 Itinerary Evaluation Module for Travel Destination Recommendation System.

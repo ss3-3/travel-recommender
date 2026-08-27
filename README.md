@@ -17,11 +17,9 @@ As a downstream practical extension of the recommendation system, the project al
 - Content-Based Filtering using TF-IDF attraction features and cosine similarity
 - User-Based Collaborative Filtering (UBCF) using user similarity and similarity-weighted rating prediction
 - Controlled model comparison evaluated under the same experimental conditions
-- Downstream itinerary module implementing:
-  - Geographic candidate selection (filtering out distant attractions relative to the Rank 1 anchor)
-  - K-Means day grouping for selected compatible attractions
-  - Pace-aware daily capacity constraints (1–3 stops per day; 2 stops limit for Relaxed pace)
-  - Haversine distance-based Greedy Nearest-Neighbor route ordering within each day
+- Downstream one-day itinerary module implementing:
+  - Geographic candidate selection using a fixed-radius (50 km) Haversine-distance grouping around the best-supported anchor candidate
+  - Haversine distance-based Greedy Nearest-Neighbor route ordering among the selected stops
 - Exclusion of already visited/rated attractions from recommendation results
 - Interactive Streamlit application for selecting users, models, travel pace, and trip duration
 - Offline evaluation using Precision@K, Recall@K, F1@K, and Recommendation Coverage
@@ -112,7 +110,7 @@ In the application, users can:
 - Choose Content-Based Filtering, User-Based Collaborative Filtering (UBCF), or compare both models
 - Select the number of recommendations to display
 - View ranked attraction recommendations with model-specific scores
-- Specify the number of travel days and generate a geographically grouped day-by-day itinerary (using geographic candidate selection, K-Means day grouping, and Haversine Greedy Nearest-Neighbor ordering)
+- Specify the number of destinations (M) to include and generate a geographically grouped one-day itinerary (using fixed-radius 50 km geographic candidate selection and Haversine Greedy Nearest-Neighbor ordering)
 - Download the generated itinerary as a CSV file
 
 ## 6. Dataset
@@ -162,15 +160,14 @@ Cosine similarity is computed between users based on overlapping rated attractio
 
 ### Downstream Itinerary Generation
 
-The itinerary module is a downstream practical extension of the recommendation system. It translates the Top-N recommended candidates into a geographically feasible travel plan, filtering out geographically incompatible candidates while preserving empty days explicitly if the count of selected regional attractions is smaller than the requested trip duration. It is not designed to find globally optimal routes.
+The itinerary module is a downstream practical extension of the recommendation system. It translates the Top-N recommended candidates into a single, geographically feasible one-day travel plan capped at a user-specified number of destinations (M). It is not designed to find globally optimal routes.
 
 The itinerary generation pipeline runs as follows:
 
 1. **Attach Coordinates:** Joins the Top-N candidate recommendations with geodetic latitude/longitude from `data/coordinates.csv`.
-2. **Geographic Candidate Selection:** Filters out geographically incompatible candidate attractions using the Rank 1 attraction as a relative geographic anchor. Distant attractions (outside the anchor's region/province or beyond relative distance thresholds) are excluded from the itinerary but remain visible as valid recommendations in the UI.
-3. **K-Means Day Grouping:** Groups the selected compatible attractions into travel days (clusters) using the K-Means clustering algorithm based on coordinate positions.
-4. **Pace-Aware Capacity Enforcement:** Enforces a maximum capacity limit of 1–3 stops per day (maximum of 2 stops/day for `Relaxed` pace; up to 3 stops/day for `Balanced` or `Packed` paces). Low-priority candidate overflows are dropped to meet local and global constraints, and assignments are balanced across days using local swaps.
-5. **Haversine Route Ordering:** Within each travel day, sequences the stops using a Greedy Nearest-Neighbor heuristic based on the Haversine distance formula, starting from the highest-ranked recommendation in that day's cluster.
+2. **Geographic Candidate Selection:** For each candidate, computes the Haversine distance to every other candidate and groups those within a fixed 50 km radius. The candidate whose group has the most members is selected as the anchor (ties broken by better/lower recommendation rank); candidates outside the anchor's group are excluded from the itinerary as geographically incompatible but remain visible as valid recommendations in the UI.
+3. **Capacity Capping:** The anchor's group is capped at the requested number of destinations (M), keeping the highest-ranked members.
+4. **Haversine Route Ordering:** The selected stops are sequenced using a Greedy Nearest-Neighbor heuristic based on the Haversine distance formula, starting from the lowest-rank (highest-priority) stop.
 
 ## 9. Evaluation
 
@@ -184,6 +181,13 @@ Implemented metrics:
 - **Recall@K:** Proportion of held-out attractions captured by the recommendation list.
 - **F1@K:** Harmonic mean of Precision@K and Recall@K.
 - **Recommendation Coverage:** Proportion of test users for whom the model returns a non-empty recommendation list.
+
+Separately, the generated one-day itinerary is evaluated using dedicated itinerary-level metrics (see `src/itinerary_evaluation.py`):
+
+- **Average Consecutive-Stop Distance:** Mean Haversine distance between consecutive stops in the generated route.
+- **Total Travel Distance:** Sum of Haversine distances across the full route.
+- **Geographic Compactness:** Average pairwise Haversine distance between all selected stops.
+- **Candidate Carryover Rate:** Proportion of Top-N recommended candidates retained in the final itinerary.
 
 ## 10. Development Workflow
 

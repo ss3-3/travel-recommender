@@ -1,3 +1,5 @@
+# Module Contribution: Soh Sook Shan (26WMR12721) & Goh Thong En (26WMR12713) - Itinerary Generation (joint work)
+
 # pyrefly: ignore [missing-import]
 """
 One-Day Itinerary Generation Module for Travel Destination Recommendation System.

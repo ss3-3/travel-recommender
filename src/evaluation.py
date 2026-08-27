@@ -6,6 +6,7 @@ and Coverage) and evaluation orchestrators to compare Content-Based Filtering
 and Collaborative Filtering models fairly over held-out test data.
 """
 
+import math
 from typing import Callable, Dict, List, Tuple, Union
 import pandas as pd
 
@@ -71,6 +72,67 @@ def f1_at_k(precision: float, recall: float) -> float:
         return 0.0
 
     return 2.0 * precision * recall / (precision + recall)
+
+
+def dcg_at_k(recommended_attractions: list, actual_attractions: set, k: int = 10) -> float:
+    """
+    Computes Discounted Cumulative Gain at K (DCG@K) for a single user's ranked
+    recommendation list, using binary relevance (1 if the recommended attraction
+    is in the user's held-out test set, 0 otherwise).
+
+    Args:
+        recommended_attractions (list): Ranked list of recommended attraction_uids
+            (rank 1 first).
+        actual_attractions (set): Set of true attraction_uids in test_df.
+        k (int): Rank cutoff.
+
+    Returns:
+        float: DCG@K value. Returns 0.0 if the recommendation list is empty.
+    """
+    if not recommended_attractions:
+        return 0.0
+
+    dcg = 0.0
+    for position, attraction_uid in enumerate(recommended_attractions[:k], start=1):
+        relevance = 1.0 if attraction_uid in actual_attractions else 0.0
+        if relevance:
+            dcg += relevance / math.log2(position + 1)
+
+    return dcg
+
+
+def ndcg_at_k(recommended_attractions: list, actual_attractions: set, k: int = 10) -> float:
+    """
+    Computes Normalized Discounted Cumulative Gain at K (nDCG@K) for a single
+    user's ranked recommendations, using binary relevance.
+
+    nDCG@K = DCG@K / IDCG@K, where IDCG@K is the DCG of the ideal ranking (all
+    relevant attractions, up to K of them, placed at the top of the list). This
+    rewards a recommender not only for retrieving relevant attractions but for
+    ranking them near the top of the Top-K list.
+
+    Args:
+        recommended_attractions (list): Ranked list of recommended attraction_uids
+            (rank 1 first).
+        actual_attractions (set): Set of true attraction_uids in test_df.
+        k (int): Rank cutoff.
+
+    Returns:
+        float: nDCG@K value in [0, 1]. Returns 0.0 if the recommendation list or
+            the ground-truth set is empty.
+    """
+    if not recommended_attractions or not actual_attractions:
+        return 0.0
+
+    dcg = dcg_at_k(recommended_attractions, actual_attractions, k)
+
+    ideal_hit_count = min(len(actual_attractions), k)
+    idcg = sum(1.0 / math.log2(position + 1) for position in range(1, ideal_hit_count + 1))
+
+    if idcg == 0.0:
+        return 0.0
+
+    return dcg / idcg
 
 
 def coverage(evaluated_user_count: int, total_test_user_count: int) -> float:
@@ -171,6 +233,7 @@ def evaluate_model(
         p = precision_at_k(recommended_list, actual_set)
         r = recall_at_k(recommended_list, actual_set)
         f1 = f1_at_k(p, r)
+        ndcg = ndcg_at_k(recommended_list, actual_set, top_n)
         hit_count = len(set(recommended_list).intersection(actual_set))
 
         per_user_data.append({
@@ -178,6 +241,7 @@ def evaluate_model(
             "precision_at_k": p,
             "recall_at_k": r,
             "f1_at_k": f1,
+            "ndcg_at_k": ndcg,
             "hit_count": hit_count,
             "recommended_count": len(recommended_list),
             "test_count": len(actual_set)
@@ -194,6 +258,7 @@ def evaluate_model(
     avg_precision = covered_users_df["precision_at_k"].mean() if evaluated_user_count > 0 else 0.0
     avg_recall = covered_users_df["recall_at_k"].mean() if evaluated_user_count > 0 else 0.0
     avg_f1 = covered_users_df["f1_at_k"].mean() if evaluated_user_count > 0 else 0.0
+    avg_ndcg = covered_users_df["ndcg_at_k"].mean() if evaluated_user_count > 0 else 0.0
 
     cov = coverage(evaluated_user_count, total_test_user_count)
 
@@ -210,6 +275,7 @@ def evaluate_model(
         "precision_at_k": avg_precision,
         "recall_at_k": avg_recall,
         "f1_at_k": avg_f1,
+        "ndcg_at_k": avg_ndcg,
         "coverage": cov,
         "evaluated_user_count": evaluated_user_count,
         "coverage_user_count": evaluated_user_count,
@@ -291,6 +357,8 @@ __all__ = [
     "precision_at_k",
     "recall_at_k",
     "f1_at_k",
+    "dcg_at_k",
+    "ndcg_at_k",
     "coverage",
     "extract_ground_truth",
     "evaluate_model",

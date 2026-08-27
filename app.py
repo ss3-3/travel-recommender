@@ -333,6 +333,7 @@ def render_performance_section():
         "Precision@10": [0.0040, 0.0085],
         "Recall@10": [0.0208, 0.0392],
         "F1-Score@10": [0.0066, 0.0138],
+        "nDCG@10": [0.0090, 0.0201],
         "Coverage": ["100.0%", "100.0%"],
     }
     perf_df = pd.DataFrame(perf_data)
@@ -344,6 +345,7 @@ def render_performance_section():
             "Precision@10": st.column_config.NumberColumn(format="%.4f"),
             "Recall@10": st.column_config.NumberColumn(format="%.4f"),
             "F1-Score@10": st.column_config.NumberColumn(format="%.4f"),
+            "nDCG@10": st.column_config.NumberColumn(format="%.4f"),
         },
     )
 
