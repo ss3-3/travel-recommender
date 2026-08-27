@@ -1,8 +1,10 @@
+# Module Contribution: Soh Sook Shan (26WMR12721) & Goh Thong En (26WMR12713) - Recommendation Evaluation Metrics (joint work)
+
 """
 Recommendation System Evaluation Module.
 
 This module implements offline evaluation metrics (Precision@K, Recall@K, F1@K,
-and Coverage) and evaluation orchestrators to compare Content-Based Filtering
+Coverage, and nDCG@K) and evaluation orchestrators to compare Content-Based Filtering
 and Collaborative Filtering models fairly over held-out test data.
 """
 

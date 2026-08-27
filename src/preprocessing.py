@@ -1,3 +1,5 @@
+# Module Contribution: Soh Sook Shan (26WMR12721) & Goh Thong En (26WMR12713) - Data Preprocessing (joint work)
+
 """
 Preprocessing module for the Travel Destination Recommendation System.
 
