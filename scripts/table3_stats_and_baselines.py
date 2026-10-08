@@ -4,6 +4,7 @@ Supplementary statistics for Table 3 (reviewer requests). No src/ file is modifi
 Parts (run one at a time, `python scripts/table3_stats_and_baselines.py <part>`):
   stats      per-user mean / SD / 95% CI for CBF and UBCF + paired CBF-UBCF difference
   baselines  random and popularity baselines, same split/users/Top-10/metrics
+  baselines_ci  per-user mean/SD/95% CI for the baselines (same basis as CBF/UBCF)
   ties       how often identical scores occur among candidate POIs at the Top-10
              boundary, and whether a deterministic tie-break changes the metrics
 
@@ -223,7 +224,57 @@ def part_ties():
     print(s.T.to_string())
 
 
+def part_baselines_ci():
+    """Per-user mean, SD and 95% CI for the Popularity and Random baselines, so they
+    can sit in Table 3 on the same basis as CBF/UBCF (SD = across-user SD).
+    Popularity is deterministic. Random is run for 20 seeds; for each seed the
+    per-user mean/SD/CI are computed over the 9,744 users, then averaged over seeds
+    (the across-seed SD of the mean is reported separately)."""
+    attraction_df, train_df, test_df, test_users = setup()
+    all_uids = np.array(sorted(attraction_df["attraction_uid"].unique()))
+    rated = train_df.groupby("tourist_id")["attraction_uid"].apply(set).to_dict()
+    pop = train_df.groupby("attraction_uid").size()
+    pop_order = sorted(all_uids, key=lambda u: (-pop.get(u, 0), u))
+    truth = {u: extract_ground_truth(u, test_df) for u in test_users}
+
+    def per_user(rec_by_user):
+        out = {m: [] for m in METRICS}
+        for u in test_users:
+            rec = rec_by_user[u]; t = truth[u]
+            p = precision_at_k(rec, t); r = recall_at_k(rec, t)
+            out["precision_at_k"].append(p); out["recall_at_k"].append(r)
+            out["f1_at_k"].append(f1_at_k(p, r)); out["ndcg_at_k"].append(ndcg_at_k(rec, t, K))
+        return {m: np.array(v) for m, v in out.items()}
+
+    rows = []
+    rec = {u: [x for x in pop_order if x not in rated.get(u, set())][:K] for u in test_users}
+    pu = per_user(rec)
+    for m in METRICS:
+        mean, sd, lo, hi = ci_row(pu[m])
+        rows.append({"baseline": "Popularity", "metric": m, "mean": mean, "sd_across_users": sd, "ci95_low": lo, "ci95_high": hi})
+
+    seed_stats = {m: [] for m in METRICS}
+    for seed in range(20):
+        rng = np.random.RandomState(seed)
+        rec = {}
+        for u in test_users:
+            cand = [x for x in all_uids if x not in rated.get(u, set())]
+            idx = rng.choice(len(cand), size=min(K, len(cand)), replace=False)
+            rec[u] = [cand[i] for i in idx]
+        pu = per_user(rec)
+        for m in METRICS:
+            seed_stats[m].append(ci_row(pu[m]))
+    for m in METRICS:
+        a = np.array(seed_stats[m])  # columns: mean, sd, lo, hi
+        rows.append({"baseline": "Random (avg over 20 seeds)", "metric": m, "mean": a[:, 0].mean(),
+                     "sd_across_users": a[:, 1].mean(), "ci95_low": a[:, 2].mean(), "ci95_high": a[:, 3].mean(),
+                     "sd_of_mean_across_seeds": a[:, 0].std(ddof=1)})
+    out = pd.DataFrame(rows)
+    out.to_csv(RES / "table3_baselines_sd_ci.csv", index=False)
+    print(out.to_string(index=False))
+
+
 if __name__ == "__main__":
     t0 = time.time()
-    {"stats": part_stats, "baselines": part_baselines, "ties": part_ties}[sys.argv[1]]()
+    {"stats": part_stats, "baselines": part_baselines, "ties": part_ties, "baselines_ci": part_baselines_ci}[sys.argv[1]]()
     print(f"Elapsed {time.time()-t0:.1f}s")

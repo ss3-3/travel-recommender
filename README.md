@@ -225,12 +225,14 @@ Additional experiments added in response to reviewer comments. They reuse the un
 | `scripts/ablation_cbf_no_geo.py` | CBF ablation: removes `province` and `city` from the content text, then repeats the recommendation- and itinerary-level evaluation. The original `build_content_column()` is not changed. | ~13 min |
 | `scripts/table3_stats_and_baselines.py stats` | Per-user mean, SD and 95% CI for CBF and UBCF, plus paired CBF-UBCF differences (paired t-test, Wilcoxon). | ~6 min |
 | `scripts/table3_stats_and_baselines.py baselines` | Random (20 seeds) and popularity baselines under the same protocol. | ~1 min |
+| `scripts/table3_stats_and_baselines.py baselines_ci` | Per-user mean, SD and 95% CI for the Popularity and Random baselines (same basis as CBF/UBCF in Table 3). | ~1 min |
 | `scripts/table3_stats_and_baselines.py ties` | How often identical scores occur at the Top-10 boundary, and the effect of a deterministic tie-break (`attraction_uid` ascending). | ~6 min |
 
 ```bash
 python scripts/ablation_cbf_no_geo.py
 python scripts/table3_stats_and_baselines.py stats
 python scripts/table3_stats_and_baselines.py baselines
+python scripts/table3_stats_and_baselines.py baselines_ci
 python scripts/table3_stats_and_baselines.py ties
 ```
 
