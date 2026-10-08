@@ -1,0 +1,3 @@
+model,model_name,precision_at_k,recall_at_k,f1_at_k,ndcg_at_k,coverage,evaluated_user_count,coverage_user_count,total_test_user_count
+CBF (original),Content-Based Filtering,0.004495073891625616,0.022595101258894357,0.00737668871905325,0.012238086791229109,1.0,9744,9744,9744
+CBF (no province/city),Content-Based Filtering,0.004874794745484402,0.025212096332785983,0.008043287445996807,0.013747776029688102,1.0,9744,9744,9744

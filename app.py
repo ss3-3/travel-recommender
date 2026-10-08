@@ -504,8 +504,11 @@ def render_itinerary_ui(
             f"Total travel distance: {total_distance:.2f} km"
         )
 
-        # Display each destination according to route order
-        for index, row in itinerary_sorted.iterrows():
+        # Display each destination according to route order. Position comes
+        # from enumerate() (a real int) rather than the row label iterrows()
+        # yields (typed generically as Hashable), matching the same pattern
+        # already used in render_recommendation_cards() above.
+        for position, (_, row) in enumerate(itinerary_sorted.iterrows()):
             stop_order = int(row["stop_order"])
             attraction_name = row["attraction_name"]
             city = row["city"]
@@ -521,9 +524,9 @@ def render_itinerary_ui(
             )
 
             # Show distance to the next destination
-            if index < len(itinerary_sorted) - 1:
+            if position < len(itinerary_sorted) - 1:
                 next_distance = itinerary_sorted.iloc[
-                    index + 1
+                    position + 1
                 ]["distance_from_prev_km"]
 
                 st.markdown(

@@ -216,3 +216,29 @@ The project implements two recommendation approaches with different recommendati
 | User-Based Collaborative Filtering (UBCF) | Rating patterns from similar users |
 
 CBF focuses on item characteristics, while UBCF leverages similarities between users.
+## 13. Reviewer-Revision Experiments (Round 2)
+
+Additional experiments added in response to reviewer comments. They reuse the unmodified `src/` modules and the same protocol as the paper (per-user 80/20 split with `random_state=42`, 9,744 test users, Top-N = 10, UBCF k = 20, up to 4 itinerary stops, 50 km radius). Run all commands from the project root.
+
+| Script | Purpose | Runtime (approx.) |
+|---|---|---|
+| `scripts/ablation_cbf_no_geo.py` | CBF ablation: removes `province` and `city` from the content text, then repeats the recommendation- and itinerary-level evaluation. The original `build_content_column()` is not changed. | ~13 min |
+| `scripts/table3_stats_and_baselines.py stats` | Per-user mean, SD and 95% CI for CBF and UBCF, plus paired CBF-UBCF differences (paired t-test, Wilcoxon). | ~6 min |
+| `scripts/table3_stats_and_baselines.py baselines` | Random (20 seeds) and popularity baselines under the same protocol. | ~1 min |
+| `scripts/table3_stats_and_baselines.py ties` | How often identical scores occur at the Top-10 boundary, and the effect of a deterministic tie-break (`attraction_uid` ascending). | ~6 min |
+
+```bash
+python scripts/ablation_cbf_no_geo.py
+python scripts/table3_stats_and_baselines.py stats
+python scripts/table3_stats_and_baselines.py baselines
+python scripts/table3_stats_and_baselines.py ties
+```
+
+Outputs are written to `results/` (`ablation_cbf_no_geo_*`, `table3_*`, `tie_analysis_*`, `per_user_metrics_*`).
+
+### Key findings
+
+- **Ablation:** removing `province`/`city` lowers the CBF multi-stop itinerary rate from 58.7% to 27.6% (UBCF: 15.4%). Precision@10 changes only slightly (0.0045 to 0.0049).
+- **Baselines:** random Precision@10 = 0.0047 and popularity = 0.0043, so CBF (0.0045) and UBCF (0.0044) are at the level of these baselines on this dataset.
+- **Statistics:** paired CBF-UBCF differences are not significant (all p > 0.7).
+- **Ties:** POI scores that are identical are ordered by pandas' default sort, with no explicit tie-break rule (UBCF neighbours are tie-broken by `tourist_id`). Ties occur at the Top-10 boundary for 83.4% of users under UBCF and 8.0% under CBF.

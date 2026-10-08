@@ -10,7 +10,7 @@ the decisions from the Exploratory Data Analysis (EDA) phase.
 
 from pathlib import Path
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 import numpy as np
 import pandas as pd
 
@@ -205,7 +205,12 @@ def prepare_interactions(df: pd.DataFrame) -> pd.DataFrame:
         .mean()
     )
 
-    return interactions
+    # pandas' type stubs report groupby(...)[col].mean() as returning a
+    # Series even when as_index=False (which makes it return a DataFrame
+    # at runtime, verified: the group-key columns are kept as real columns
+    # instead of becoming the index). This cast corrects the static type
+    # to match the actual, tested runtime type; it has no effect at runtime.
+    return cast(pd.DataFrame, interactions)
 
 
 def train_test_split_by_user(

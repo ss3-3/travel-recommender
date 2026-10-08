@@ -1,0 +1,32 @@
+Test users: 9744
+[CBF (original)] TF-IDF shape = (433, 285)
+[CBF (no province/city)] TF-IDF shape = (433, 251)
+
+=== Recommendation-level ===
+                 model              model_name  precision_at_k  recall_at_k  f1_at_k  ndcg_at_k  coverage  evaluated_user_count  coverage_user_count  total_test_user_count
+        CBF (original) Content-Based Filtering        0.004495     0.022595 0.007377   0.012238       1.0                  9744                 9744                   9744
+CBF (no province/city) Content-Based Filtering        0.004875     0.025212 0.008043   0.013748       1.0                  9744                 9744                   9744
+
+=== Itinerary-level ===
+--- CBF (original) (n=9744) ---
+Multi-stop itineraries: 5715 / 9744 (58.7%)
+Mean selected stops (of 4): 1.777 (SD 0.810)
+Mean candidate carryover: 17.77% (SD 8.10%)
+Mean total travel distance: 17.90 km (SD 23.98)
+Mean avg consecutive-stop distance (multi-stop): 22.66 km (SD 14.98)
+Mean geographic compactness (multi-stop): 12.72 km (SD 8.25)
+--- CBF (no province/city) (n=9744) ---
+Multi-stop itineraries: 2694 / 9744 (27.6%)
+Mean selected stops (of 4): 1.312 (SD 0.537)
+Mean candidate carryover: 13.12% (SD 5.37%)
+Mean total travel distance: 10.09 km (SD 19.92)
+Mean avg consecutive-stop distance (multi-stop): 32.47 km (SD 16.70)
+Mean geographic compactness (multi-stop): 16.83 km (SD 8.45)
+
+Mean Top-10 overlap between original and no-geo CBF: 0.244
+Paired stops: original>no-geo 4432, no-geo>original 1010, tie 4302
+
+Tourist ID 1 | CBF (original): top10 cities=['Shen Zhen Shi', 'Shen Zhen Shi', 'Shanghai', 'Shanghai', 'Wu Hu Shi', 'Xi An Shi', 'Zhu Hai Shi', 'Wu Xi Shi', 'Shen Yang Shi', 'Da Lian Shi']
+   itinerary stops=2 metrics={'avg_consecutive_distance': 32.70568879807172, 'total_travel_distance': 32.70568879807172, 'geographic_compactness': 16.352846904750777, 'candidate_carryover_rate': 0.2}
+Tourist ID 1 | CBF (no province/city): top10 cities=['Shen Zhen Shi', 'Jin Hua Shi', 'Da Lian Shi', 'Kun Ming Shi', 'Wu Xi Shi', 'Kai Feng Shi', 'Shen Yang Shi', 'Shen Zhen Shi', 'Xi An Shi', 'Wu Hu Shi']
+   itinerary stops=2 metrics={'avg_consecutive_distance': 32.70568879807172, 'total_travel_distance': 32.70568879807172, 'geographic_compactness': 16.352846904750777, 'candidate_carryover_rate': 0.2}

@@ -12,7 +12,7 @@ Haversine heuristic.
 import math
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union, cast
+from typing import Any, Dict, List, Literal, Tuple, Union, cast, overload
 import pandas as pd
 import numpy as np
 
@@ -187,6 +187,33 @@ def order_day(day_df: pd.DataFrame) -> pd.DataFrame:
         stop_idx += 1
 
     return pd.DataFrame(path)
+
+
+# Overload stubs so that static type checkers can tell, from the literal
+# value passed for return_excluded at each call site, whether this function
+# returns a single DataFrame or a (DataFrame, DataFrame) tuple -- without
+# these, every caller's return value is typed as the full Union regardless
+# of which value it actually passed, which is what was causing "DataFrame |
+# Hashable"/"DataFrame | Tuple[...]" type errors at call sites in app.py and
+# in the population-evaluation scripts. These stubs add no runtime behaviour;
+# only the implementation below (unchanged) actually executes.
+@overload
+def build_one_day_itinerary(
+    recommendations_df: pd.DataFrame,
+    coordinates_df: pd.DataFrame,
+    num_stops: int,
+    return_excluded: Literal[False] = False,
+) -> pd.DataFrame: ...
+
+
+@overload
+def build_one_day_itinerary(
+    recommendations_df: pd.DataFrame,
+    coordinates_df: pd.DataFrame,
+    num_stops: int,
+    return_excluded: Literal[True],
+) -> Tuple[pd.DataFrame, pd.DataFrame]: ...
+
 
 def build_one_day_itinerary(
     recommendations_df: pd.DataFrame,
