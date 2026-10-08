@@ -254,6 +254,7 @@ def part_baselines_ci():
         rows.append({"baseline": "Popularity", "metric": m, "mean": mean, "sd_across_users": sd, "ci95_low": lo, "ci95_high": hi})
 
     seed_stats = {m: [] for m in METRICS}
+    seed_user_vals = {m: [] for m in METRICS}   # per-seed per-user arrays, for the seed-averaged variant
     for seed in range(20):
         rng = np.random.RandomState(seed)
         rec = {}
@@ -264,6 +265,14 @@ def part_baselines_ci():
         pu = per_user(rec)
         for m in METRICS:
             seed_stats[m].append(ci_row(pu[m]))
+            seed_user_vals[m].append(pu[m])
+    # Stricter variant: average each user's metric over the 20 seeds first, then
+    # compute mean / SD / 95% CI across users (CI for expected random performance).
+    for m in METRICS:
+        avg_user = np.mean(np.vstack(seed_user_vals[m]), axis=0)
+        mean, sd, lo, hi = ci_row(avg_user)
+        rows.append({"baseline": "Random (user values averaged over 20 seeds)", "metric": m, "mean": mean,
+                     "sd_across_users": sd, "ci95_low": lo, "ci95_high": hi})
     for m in METRICS:
         a = np.array(seed_stats[m])  # columns: mean, sd, lo, hi
         rows.append({"baseline": "Random (avg over 20 seeds)", "metric": m, "mean": a[:, 0].mean(),
